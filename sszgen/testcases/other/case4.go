@@ -1,6 +1,6 @@
 package other
 
-import ssz "github.com/ferranbt/fastssz"
+import ssz "github.com/claravanstaden/fastssz"
 
 type Case4Interface struct {
 }

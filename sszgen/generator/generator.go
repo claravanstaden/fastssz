@@ -19,7 +19,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ferranbt/fastssz/sszgen/version"
+	"github.com/claravanstaden/fastssz/sszgen/version"
 )
 
 const bytesPerLengthOffset = 4
@@ -368,7 +368,7 @@ func (e *env) print(order []string) (string, bool, error) {
 	package {{.package}}
 
 	import (
-		ssz "github.com/ferranbt/fastssz" {{ if .imports }}{{ range $value := .imports }}
+		ssz "github.com/claravanstaden/fastssz" {{ if .imports }}{{ range $value := .imports }}
 			{{ $value }} {{ end }}
 		{{ end }}
 	)

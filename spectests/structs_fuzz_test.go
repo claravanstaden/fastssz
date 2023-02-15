@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ferranbt/fastssz/fuzz"
+	"github.com/claravanstaden/fastssz/fuzz"
 )
 
 func randomInt(min, max int) int {

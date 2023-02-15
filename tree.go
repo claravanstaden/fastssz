@@ -79,6 +79,7 @@ func (c *CompressedMultiproof) Decompress() *Multiproof {
 // Node represents a node in the tree
 // backing of a SSZ object.
 type Node struct {
+	index   int
 	left    *Node
 	right   *Node
 	isEmpty bool
@@ -105,10 +106,10 @@ func (n *Node) show(depth int, maxDepth int) {
 
 	if n.left != nil || n.right != nil {
 		// leaf hash is the same as value
-		print("HASH: " + hex.EncodeToString(n.Hash()) + "\n")
+		print(fmt.Sprintf("HASH (index %d): "+hex.EncodeToString(n.Hash())+"\n", n.index))
 	}
 	if n.value != nil {
-		print("VALUE: " + hex.EncodeToString(n.value) + "\n")
+		print(fmt.Sprintf("VALUE (index %d): "+hex.EncodeToString(n.value)+"\n", n.index))
 	}
 
 	if maxDepth > 0 {
@@ -133,13 +134,17 @@ func NewNodeWithValue(value []byte) *Node {
 	return &Node{left: nil, right: nil, value: value}
 }
 
-func NewEmptyNode(zeroOrderHash []byte) *Node {
-	return &Node{left: nil, right: nil, value: zeroOrderHash, isEmpty: true}
+func NewEmptyNode(zeroOrderHash []byte, index int) *Node {
+	return &Node{left: nil, right: nil, value: zeroOrderHash, index: index, isEmpty: true}
 }
 
 // NewNodeWithLR initializes a branch node.
 func NewNodeWithLR(left, right *Node) *Node {
 	return &Node{left: left, right: right, value: nil}
+}
+
+func NewNodeWithLRIndex(left, right *Node, index int) *Node {
+	return &Node{left: left, right: right, index: index, value: nil}
 }
 
 // TreeFromChunks constructs a tree from leaf values.
@@ -167,9 +172,8 @@ func TreeFromNodes(leaves []*Node, limit int) (*Node, error) {
 	depth := floorLog2(limit)
 	zeroOrderHashes := getZeroOrderHashes(depth)
 
-	// there are no leaves, return a zero order hash node
 	if numLeaves == 0 {
-		return NewEmptyNode(zeroOrderHashes[0]), nil
+		return NewEmptyNode(zeroOrderHashes[0], 1), nil
 	}
 
 	// now we know numLeaves are at least 1.
@@ -182,9 +186,8 @@ func TreeFromNodes(leaves []*Node, limit int) (*Node, error) {
 	if limit == 2 {
 		// but we only have 1 leaf, add a zero order hash as the right node
 		if numLeaves == 1 {
-			return NewNodeWithLR(leaves[0], NewEmptyNode(zeroOrderHashes[1])), nil
+			return NewNodeWithLR(leaves[0], NewEmptyNode(zeroOrderHashes[1], 2)), nil
 		}
-		// otherwise return the two nodes we have
 		return NewNodeWithLR(leaves[0], leaves[1]), nil
 	}
 
@@ -205,7 +208,13 @@ func TreeFromNodes(leaves []*Node, limit int) (*Node, error) {
 		for i := nodesEndIndex; i >= nodesStartIndex; i-- {
 			// leaf node, add to map
 			if k == depth {
-				nodes[i] = leaves[leafIndex]
+				leaf := *leaves[leafIndex]
+				leaf.index = i
+				if leaf.left != nil {
+					leaf.fixIndexes()
+				}
+
+				nodes[i] = &leaf
 				leafIndex--
 			} else { // branch node, compute
 				leftIndex := i * 2
@@ -216,11 +225,11 @@ func TreeFromNodes(leaves []*Node, limit int) (*Node, error) {
 				}
 				// node with empty right node, add zero order hash as right node and mark right node as empty
 				if nodes[leftIndex] != nil && nodes[rightIndex] == nil {
-					nodes[i] = NewNodeWithLR(nodes[leftIndex], NewEmptyNode(zeroOrderHashes[k+1]))
+					nodes[i] = NewNodeWithLRIndex(nodes[leftIndex], NewEmptyNode(zeroOrderHashes[k+1], rightIndex), i)
 				}
 				// node with left and right child
 				if nodes[leftIndex] != nil && nodes[rightIndex] != nil {
-					nodes[i] = NewNodeWithLR(nodes[leftIndex], nodes[rightIndex])
+					nodes[i] = NewNodeWithLRIndex(nodes[leftIndex], nodes[rightIndex], i)
 				}
 			}
 		}
@@ -235,6 +244,22 @@ func TreeFromNodes(leaves []*Node, limit int) (*Node, error) {
 	}
 
 	return nodes[1], nil
+}
+
+func (n *Node) fixIndexes() {
+	if n.left != nil {
+		n.left.index = 2 * n.index
+	}
+	if n.right != nil {
+		n.right.index = 2*n.index + 1
+	}
+
+	if n.left != nil {
+		n.left.fixIndexes()
+	}
+	if n.right != nil {
+		n.right.fixIndexes()
+	}
 }
 
 func TreeFromNodesWithMixin(leaves []*Node, num, limit int) (*Node, error) {
